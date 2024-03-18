@@ -22,7 +22,7 @@ public struct ShapeIntersection: Equatable, Sendable {
 
 public struct Shape: Equatable, Sendable {
     public struct Cap: Equatable, Sendable {
-        let curve: BezierCurve
+        public let curve: BezierCurve
         let virtual: Bool // a cap is virtual if it is internal (not part of the outline of the boundary)
         init(curve: BezierCurve, virtual: Bool) {
             self.curve = curve
