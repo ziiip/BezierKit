@@ -246,11 +246,14 @@ extension BezierCurve {
         ensureContinuous(&backCurves)
         // reverse the "return" outline
         backCurves = backCurves.reversed().map { $0.reversed() }
+        guard forwardCurves.count > 0, backCurves.count > 0 else {
+            return PathComponent(curves: [])
+        }
         // form the endcaps as lines
-        let forwardStart = forwardCurves[0].points[0]
-        let forwardEnd = forwardCurves[length-1].points[forwardCurves[length-1].points.count-1]
-        let backStart = backCurves[length-1].points[backCurves[length-1].points.count-1]
-        let backEnd = backCurves[0].points[0]
+        let forwardStart = forwardCurves.first!.points.first!
+        let forwardEnd = forwardCurves.last!.points[forwardCurves.last!.points.count-1]
+        let backStart = backCurves.last!.points[backCurves.last!.points.count-1]
+        let backEnd = backCurves.first!.points.first!
         let lineStart = LineSegment(p0: backStart, p1: forwardStart)
         let lineEnd = LineSegment(p0: forwardEnd, p1: backEnd)
         let segments = [lineStart] + forwardCurves + [lineEnd] + backCurves
