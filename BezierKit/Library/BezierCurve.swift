@@ -158,7 +158,7 @@ extension BezierCurve {
 
     /// Scales a curve with respect to the intersection between the end point normals. Note that this will only work if that intersection point exists, which is only guaranteed for simple segments.
     /// - Parameter distance: desired distance the resulting curve should fall from the original (in the direction of its normals).
-    public func scale(distance: CGFloat) -> Self? {
+    public func scale(sd: CGFloat, ed: CGFloat) -> Self? {
         let order = self.order
         assert(order < 4, "only works with cubic or lower order")
         guard order > 0 else { return self } // points cannot be scaled
@@ -172,6 +172,7 @@ extension BezierCurve {
         func scaledPoint(index: Int) -> CGPoint {
             let referencePointIsStart = (index < 2 && order > 1) || (index == 0 && order == 1)
             let referenceT: CGFloat = referencePointIsStart ? 0.0 : 1.0
+            let distance = referencePointIsStart ? sd : ed
             let referenceIndex = referencePointIsStart ? 0 : self.order
             let referencePoint = self.offset(t: referenceT, distance: distance)
             switch index {
@@ -195,7 +196,7 @@ extension BezierCurve {
 
     public func offset(distance d: CGFloat) -> [BezierCurve] {
         // for non-linear curves we need to create a set of curves
-        var result: [BezierCurve] = self.reduce().compactMap { $0.curve.scale(distance: d) }
+        var result: [BezierCurve] = self.reduce().compactMap { $0.curve.scale(sd: d, ed: d) }
         ensureContinuous(&result)
         return result
     }
@@ -210,8 +211,8 @@ extension BezierCurve {
         return internalOutline(d1: d1, d2: d1)
     }
 
-    public func outline(distanceAlongNormal d1: CGFloat, distanceOppositeNormal d2: CGFloat) -> PathComponent {
-        return internalOutline(d1: d1, d2: d2)
+    public func outline(distanceAlongNormal d1: CGFloat, distanceOppositeNormal d2: CGFloat, distanceAlongNormalAtEnd ed1: CGFloat? = nil, distanceOppositeNormalAtEnd ed2: CGFloat? = nil) -> PathComponent {
+        return internalOutline(d1: d1, d2: d2, ed1: ed1, ed2: ed2)
     }
 
     private func ensureContinuous(_ curves: inout [BezierCurve]) {
@@ -225,11 +226,22 @@ extension BezierCurve {
         }
     }
 
-    private func internalOutline(d1: CGFloat, d2: CGFloat) -> PathComponent {
+    private func internalOutline(d1: CGFloat, d2: CGFloat, ed1: CGFloat? = nil, ed2: CGFloat? = nil) -> PathComponent {
         let reduced = self.reduce()
+
+        let ed1 = ed1 ?? d1
+        let ed2 = ed2 ?? d1
+
+        let diff1 = d1 - ed1
+        let diff2 = d2 - ed2
+
         let length = reduced.count
-        var forwardCurves: [BezierCurve] = reduced.compactMap { $0.curve.scale(distance: d1) }
-        var backCurves: [BezierCurve] = reduced.compactMap { $0.curve.scale(distance: -d2) }
+        var forwardCurves: [BezierCurve] = reduced.compactMap {
+            $0.curve.scale(sd: d1 - diff1 * $0.t1, ed: d1 - diff1 * $0.t2)
+        }
+        var backCurves: [BezierCurve] = reduced.compactMap {
+            $0.curve.scale(sd: -(d2 - diff2 * $0.t1), ed: -(d2 - diff2 * $0.t2))
+        }
         ensureContinuous(&forwardCurves)
         ensureContinuous(&backCurves)
         // reverse the "return" outline
@@ -251,8 +263,8 @@ extension BezierCurve {
         return self.outlineShapes(distanceAlongNormal: d1, distanceOppositeNormal: d1, accuracy: accuracy)
     }
 
-    public func outlineShapes(distanceAlongNormal d1: CGFloat, distanceOppositeNormal d2: CGFloat, accuracy: CGFloat = BezierKit.defaultIntersectionAccuracy) -> [Shape] {
-        let outline = self.outline(distanceAlongNormal: d1, distanceOppositeNormal: d2)
+    public func outlineShapes(distanceAlongNormal d1: CGFloat, distanceOppositeNormal d2: CGFloat, distanceAlongNormalAtEnd ed1: CGFloat? = nil, distanceOppositeNormalAtEnd ed2: CGFloat? = nil, accuracy: CGFloat = BezierKit.defaultIntersectionAccuracy) -> [Shape] {
+        let outline = self.outline(distanceAlongNormal: d1, distanceOppositeNormal: d2, distanceAlongNormalAtEnd: ed1, distanceOppositeNormalAtEnd: ed2)
         var shapes: [Shape] = []
         let len = outline.numberOfElements
         for i in 1..<len/2 {
